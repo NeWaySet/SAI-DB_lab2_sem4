@@ -1,17 +1,33 @@
 __pycache__/
-*.pyc
+*.py[cod]
+
 .venv/
 venv/
+
+# Training/runtime outputs
+outputs/
 runs/
+checkpoints/
+wandb/
 *.pt
 *.pth
 *.onnx
 *.ckpt
+
+# Local demo/cache data
 image_forgery_cnn/demo_data/
-rendered_*/
-render_*/
-report_assets/
-*.pdf
-*.png
+
+# Render/QA intermediates
+render_lab2/
+render_lab2_word/
+rendered_report/
+rendered_forgery_report/
+render_lab2_chrome.png
+render_lab2_word_contact.png
+forgery_report_check.docx
 *.emf
 ~$*.docx
+
+# Local secrets
+kaggle.json
+.env
