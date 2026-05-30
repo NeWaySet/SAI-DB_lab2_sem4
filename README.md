@@ -1,37 +1,83 @@
-# SAI-DB lab 2 sem 4
+# SAI-DB lab1 sem4
 
-Репозиторий содержит материалы для практической работы по дисциплине
-«Системы искусственного интеллекта и большие данные».
+Практическое задание по дисциплине «Системы искусственного интеллекта и большие данные».
 
-## Основная работа: Deepfake Detection
+Тема работы: **разработка модели выявления признаков фальсификации или монтажа на цифровых изображениях для предотвращения мошенничества**.
 
-Тема: система обнаружения, классификации и описания дипфейков.
+## Что находится в репозитории
 
-Основные файлы:
+| Путь | Назначение |
+| --- | --- |
+| `Самостоятельное_задание_1_отчет_CNN_фальсификация_изображений.docx` | готовый отчет для защиты |
+| `image_forgery_cnn/` | рабочий проект нейросети на PyTorch |
+| `image_forgery_cnn_runpod.zip` | архив с кодом для загрузки на RunPod |
+| `.gitignore` | исключения для весов модели, датасетов и временных файлов |
 
-- `ЛБ_2_отчет.docx` - готовый отчет для защиты.
-- `ЛБ_2_отчет.pdf` - PDF-копия отчета.
-- `runpod_deepfake/` - код для обучения модели на RunPod.
+## Кратко о решении
 
-Модель в `runpod_deepfake/`:
+Модель решает бинарную задачу классификации:
 
-- датасет: Kaggle `ciplab/real-and-fake-face-detection`;
-- задача: классификация `real / fake`;
-- архитектура: CNN + BiGRU + Attention;
-- подходы из задания: рекуррентная нейронная сеть и механизм внимания;
-- профиль запуска: `rtx-pro-6000-1h`, рассчитан примерно на один час на RunPod RTX PRO 6000.
+- `original` - исходное изображение;
+- `forged` - изображение с признаками монтажа или фальсификации.
 
-Быстрый запуск на RunPod:
+В качестве CNN используется `EfficientNetB0` с transfer learning:
+
+1. Загружается EfficientNetB0 с предобученными ImageNet-весами.
+2. Стандартная классификационная голова заменяется на бинарный классификатор.
+3. На первых эпохах обучается только новая голова модели.
+4. Затем backbone размораживается и выполняется fine-tuning с меньшим learning rate.
+5. Для интерпретации результата используется Grad-CAM.
+
+## Датасет
+
+Основной датасет: `divg07/casia-20-image-tampering-detection-dataset`.
+
+Для запуска примерно на один час на RunPod с RTX PRO 6000 используется ограниченный режим:
+
+- до `5000` оригинальных изображений;
+- до `5000` изображений с монтажом;
+- вход `384 x 384`;
+- `16` эпох;
+- `batch-size 96`.
+
+## Запуск на RunPod
 
 ```bash
-cd runpod_deepfake
+cd image_forgery_cnn
 pip install -r requirements-runpod.txt
-python train_deepfake_attention_gru.py --profile rtx-pro-6000-1h
-python build_deepfake_report.py --run_dir outputs/<run-folder>
+bash run_rtx_pro_6000_hour.sh
 ```
 
-## Дополнительные материалы
+После обучения в `runs/casia_rtx_pro_6000_hour/` появятся:
 
-В репозитории также есть учебный проект `image_forgery_cnn/` и отчет
-`Самостоятельное_задание_1_отчет_CNN_фальсификация_изображений.docx`,
-которые относятся к отдельной CNN-задаче обнаружения фальсификации изображений.
+- `best_model.pt` - лучшая сохраненная модель;
+- `latest_model.pt` - последняя модель;
+- `history.csv` - история обучения;
+- `training_curves.png` - графики accuracy/loss;
+- `confusion_matrix.png` - матрица ошибок;
+- `test_metrics.json` - итоговые метрики.
+
+## Проверка изображения
+
+```bash
+python predict_forgery_cnn.py \
+  --checkpoint runs/casia_rtx_pro_6000_hour/best_model.pt \
+  --input /path/to/image_or_folder \
+  --output-csv runs/casia_rtx_pro_6000_hour/predictions.csv
+```
+
+## Grad-CAM
+
+```bash
+python gradcam_forgery_cnn.py \
+  --checkpoint runs/casia_rtx_pro_6000_hour/best_model.pt \
+  --image /path/to/test_image.jpg \
+  --output runs/casia_rtx_pro_6000_hour/gradcam_example.png
+```
+
+## Что показать на защите
+
+1. Отчет `.docx` из корня репозитория.
+2. Код обучения в `image_forgery_cnn/train_forgery_cnn.py`.
+3. Сохраненные после обучения метрики и графики.
+4. Пример Grad-CAM, показывающий область изображения, которая повлияла на решение модели.

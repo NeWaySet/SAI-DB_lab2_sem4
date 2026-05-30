@@ -1,38 +1,46 @@
-# CNN для выявления фальсификации и монтажа изображений
+# Image Forgery CNN
 
-Проект обучает бинарный классификатор `original / forged` на базе `EfficientNetB0` с трансферным обучением. Он подходит для защиты задания: есть заморозка backbone, fine-tuning, метрики, матрица ошибок, сохранение checkpoint и Grad-CAM.
+Рабочая нейросеть для выявления признаков фальсификации или монтажа на цифровых изображениях.
 
-## Целевой запуск: RTX PRO 6000
+Модель классифицирует изображение как:
 
-Основной пресет рассчитан на RunPod с NVIDIA RTX PRO 6000 Blackwell. У этой карты большой запас видеопамяти, поэтому вместо короткого учебного запуска на 2000 изображений используется более содержательный режим примерно на один час:
+- `original` - оригинальное изображение;
+- `forged` - изображение с признаками монтажа, вставки, copy-move или другой локальной фальсификации.
 
-- Датасет: `divg07/casia-20-image-tampering-detection-dataset`
-- Ограничение: `--max-per-class 5000`, то есть до 10000 изображений суммарно.
-- Размер входа: `384 x 384`, чтобы модель видела больше локальных следов монтажа.
-- Эпохи: `16`, первые `2` эпохи обучается только классификационная голова.
-- Batch size: `96`.
-- Смешанная точность включена по умолчанию.
+## Состав проекта
 
-Фактическое время зависит от скорости диска, загрузки датасета Kaggle и конкретного образа RunPod. Если обучение идет заметно быстрее часа, увеличьте `--epochs` до `20`. Если дольше, уменьшите `--max-per-class` до `3500`.
+| Файл | Назначение |
+| --- | --- |
+| `train_forgery_cnn.py` | обучение EfficientNetB0, расчет метрик, сохранение checkpoint |
+| `predict_forgery_cnn.py` | предсказание для одного изображения или папки |
+| `gradcam_forgery_cnn.py` | Grad-CAM визуализация решения модели |
+| `create_demo_dataset.py` | генерация маленького synthetic dataset для smoke-test |
+| `requirements-runpod.txt` | зависимости для RunPod |
+| `run_rtx_pro_6000_hour.sh` | готовый запуск примерно на час для RTX PRO 6000 |
 
-## Установка на RunPod
+## Установка
 
 ```bash
-cd image_forgery_cnn
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-runpod.txt
 ```
 
-## Обучение
+На Windows:
 
-Готовая команда:
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -r requirements-runpod.txt
+```
+
+## Основное обучение на RTX PRO 6000
 
 ```bash
 bash run_rtx_pro_6000_hour.sh
 ```
 
-То же самое явно:
+Команда внутри скрипта:
 
 ```bash
 python train_forgery_cnn.py \
@@ -47,7 +55,23 @@ python train_forgery_cnn.py \
   --input-mode rgb
 ```
 
-Если датасет уже скачан вручную:
+Этот режим использует до 10000 изображений CASIA 2.0 и рассчитан примерно на один час обучения на RunPod с RTX PRO 6000. Фактическое время зависит от скорости диска, загрузки датасета и образа RunPod.
+
+Если обучение идет слишком быстро, можно увеличить:
+
+```bash
+--epochs 20
+```
+
+Если обучение занимает больше часа, можно уменьшить:
+
+```bash
+--max-per-class 3500
+```
+
+## Локальный датасет
+
+Если CASIA уже скачан вручную:
 
 ```bash
 python train_forgery_cnn.py \
@@ -60,14 +84,20 @@ python train_forgery_cnn.py \
   --image-size 384
 ```
 
-Ожидаемая структура может быть `Au/Tp`, `original/forged`, `authentic/tampered` или `real/fake`. Маски и папки `ground truth` автоматически пропускаются.
+Скрипт понимает структуры папок вида:
 
-## Быстрая проверка
+- `Au/Tp`;
+- `original/forged`;
+- `authentic/tampered`;
+- `real/fake`.
 
-Для проверки пайплайна без Kaggle можно создать маленький synthetic demo dataset:
+Папки с масками и `ground truth` автоматически пропускаются.
+
+## Быстрая проверка без Kaggle
 
 ```bash
 python create_demo_dataset.py --output demo_data --per-class 64
+
 python train_forgery_cnn.py \
   --data-dir demo_data \
   --output-dir runs/demo_smoke \
@@ -80,18 +110,7 @@ python train_forgery_cnn.py \
   --num-workers 0
 ```
 
-Для очень быстрого реального датасета можно использовать:
-
-```bash
-python train_forgery_cnn.py \
-  --dataset-slug prajnar3/image-forgery-detection-dataset-splicing \
-  --output-dir runs/splicing_quick \
-  --max-per-class 120 \
-  --epochs 5 \
-  --freeze-epochs 1 \
-  --batch-size 32 \
-  --image-size 224
-```
+Этот режим нужен только для проверки, что pipeline работает: создается dataset, запускается обучение, сохраняется checkpoint.
 
 ## Предсказание
 
@@ -111,14 +130,18 @@ python gradcam_forgery_cnn.py \
   --output runs/casia_rtx_pro_6000_hour/gradcam_example.png
 ```
 
-## Что сохраняется после обучения
+## Артефакты после обучения
 
-- `best_model.pt` и `latest_model.pt` - веса модели и параметры препроцессинга.
-- `train_split.csv`, `val_split.csv`, `test_split.csv` - разбиение датасета.
-- `history.csv` и `training_curves.png` - динамика обучения.
-- `test_metrics.json` - accuracy, precision, recall, F1, ROC-AUC, confusion matrix.
-- `confusion_matrix.png` - матрица ошибок для отчета.
+В папке запуска сохраняются:
 
-## Логика модели
+- `best_model.pt`;
+- `latest_model.pt`;
+- `train_split.csv`, `val_split.csv`, `test_split.csv`;
+- `history.csv`;
+- `training_curves.png`;
+- `confusion_matrix.png`;
+- `test_metrics.json`.
 
-`EfficientNetB0` выбран как компактная CNN-архитектура: она быстрее тяжелых ResNet-вариантов, хорошо переносит ImageNet-признаки на прикладную задачу и оставляет запас GPU-памяти для входа `384 x 384`. Первые эпохи обучается только классификационная голова, затем backbone размораживается и дообучается с меньшим learning rate.
+## Почему EfficientNetB0
+
+EfficientNetB0 выбран как компактная CNN-архитектура с хорошим балансом качества и скорости. Она быстрее тяжелых ResNet-вариантов, поддерживает transfer learning и при входе `384 x 384` позволяет лучше сохранить локальные признаки монтажа: границы вставки, отличия текстуры, следы сжатия и локальные артефакты.
