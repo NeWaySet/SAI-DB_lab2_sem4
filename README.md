@@ -1,83 +1,118 @@
-# SAI-DB lab1 sem4
+# SAI-DB lab 2 sem 4
 
-Практическое задание по дисциплине «Системы искусственного интеллекта и большие данные».
+Практическая работа по дисциплине «Системы искусственного интеллекта и большие данные».
 
-Тема работы: **разработка модели выявления признаков фальсификации или монтажа на цифровых изображениях для предотвращения мошенничества**.
+Тема основной работы: **система обнаружения, классификации и описания дипфейков (Deepfake Detection)**.
 
 ## Что находится в репозитории
 
 | Путь | Назначение |
 | --- | --- |
-| `Самостоятельное_задание_1_отчет_CNN_фальсификация_изображений.docx` | готовый отчет для защиты |
-| `image_forgery_cnn/` | рабочий проект нейросети на PyTorch |
-| `image_forgery_cnn_runpod.zip` | архив с кодом для загрузки на RunPod |
-| `.gitignore` | исключения для весов модели, датасетов и временных файлов |
+| `ЛБ_2_отчет.docx` | готовый отчет для защиты |
+| `ЛБ_2_отчет.pdf` | PDF-копия отчета |
+| `runpod_deepfake/` | код обучения deepfake-детектора на RunPod |
+| `report_assets/` | изображения и графики, использованные при подготовке отчетов |
+| `image_forgery_cnn/` | дополнительный учебный проект по классификации фальсифицированных изображений |
 
-## Кратко о решении
+## Основная модель Deepfake Detection
 
-Модель решает бинарную задачу классификации:
+Проект решает бинарную задачу классификации изображений лиц:
 
-- `original` - исходное изображение;
-- `forged` - изображение с признаками монтажа или фальсификации.
+- `real` - реальное лицо;
+- `fake` - поддельное или синтетически измененное лицо.
 
-В качестве CNN используется `EfficientNetB0` с transfer learning:
+В модели используются:
 
-1. Загружается EfficientNetB0 с предобученными ImageNet-весами.
-2. Стандартная классификационная голова заменяется на бинарный классификатор.
-3. На первых эпохах обучается только новая голова модели.
-4. Затем backbone размораживается и выполняется fine-tuning с меньшим learning rate.
-5. Для интерпретации результата используется Grad-CAM.
+1. CNN-энкодер для извлечения локальных признаков лица.
+2. BiGRU для обработки последовательности пространственных токенов.
+3. Attention pooling для выделения областей, наиболее повлиявших на решение.
+4. Бинарный классификатор, выдающий вероятность класса `fake`.
+
+Так проект закрывает требование задания о комплексном применении минимум двух подходов:
+
+- рекуррентные нейронные сети;
+- трансформероподобный механизм внимания.
 
 ## Датасет
 
-Основной датасет: `divg07/casia-20-image-tampering-detection-dataset`.
+Для обучения используется небольшой Kaggle-датасет:
 
-Для запуска примерно на один час на RunPod с RTX PRO 6000 используется ограниченный режим:
+```text
+ciplab/real-and-fake-face-detection
+```
 
-- до `5000` оригинальных изображений;
-- до `5000` изображений с монтажом;
-- вход `384 x 384`;
-- `16` эпох;
-- `batch-size 96`.
+Он подходит для учебного запуска: данные достаточно компактные, а обучение можно уложить примерно в один час на RunPod с RTX PRO 6000.
 
-## Запуск на RunPod
+## Запуск на RunPod RTX PRO 6000
+
+Рекомендуемый образ:
+
+```text
+runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu
+```
+
+Установка:
 
 ```bash
-cd image_forgery_cnn
+cd runpod_deepfake
 pip install -r requirements-runpod.txt
-bash run_rtx_pro_6000_hour.sh
 ```
 
-После обучения в `runs/casia_rtx_pro_6000_hour/` появятся:
-
-- `best_model.pt` - лучшая сохраненная модель;
-- `latest_model.pt` - последняя модель;
-- `history.csv` - история обучения;
-- `training_curves.png` - графики accuracy/loss;
-- `confusion_matrix.png` - матрица ошибок;
-- `test_metrics.json` - итоговые метрики.
-
-## Проверка изображения
+Для Kaggle нужно положить `kaggle.json` в `~/.kaggle/kaggle.json` или задать переменные:
 
 ```bash
-python predict_forgery_cnn.py \
-  --checkpoint runs/casia_rtx_pro_6000_hour/best_model.pt \
-  --input /path/to/image_or_folder \
-  --output-csv runs/casia_rtx_pro_6000_hour/predictions.csv
+export KAGGLE_USERNAME="your_username"
+export KAGGLE_KEY="your_key"
 ```
 
-## Grad-CAM
+Основной запуск примерно на час:
 
 ```bash
-python gradcam_forgery_cnn.py \
-  --checkpoint runs/casia_rtx_pro_6000_hour/best_model.pt \
-  --image /path/to/test_image.jpg \
-  --output runs/casia_rtx_pro_6000_hour/gradcam_example.png
+python train_deepfake_attention_gru.py --profile rtx-pro-6000-1h
+```
+
+Профиль `rtx-pro-6000-1h` использует:
+
+- `image_size=384`;
+- `batch_size=96`;
+- `max_per_class=5000`;
+- `min_epochs=14`;
+- `target_minutes=55`;
+- AMP / mixed precision.
+
+После обучения появится папка вида:
+
+```text
+outputs/deepfake_attention_gru_YYYYMMDD_HHMMSS
+```
+
+В ней сохраняются:
+
+- `best_model.pt`;
+- `metrics.json`;
+- `test_predictions.csv`;
+- `learning_curves.png`;
+- `confusion_matrix.png`;
+- `attention_examples.png`.
+
+## Сборка отчета после обучения
+
+После завершения обучения можно пересобрать отчет по фактическим метрикам:
+
+```bash
+python build_deepfake_report.py --run_dir outputs/deepfake_attention_gru_YYYYMMDD_HHMMSS
+```
+
+Итоговый файл будет создан здесь:
+
+```text
+outputs/deepfake_attention_gru_YYYYMMDD_HHMMSS/Deepfake_Attention_GRU_Report.docx
 ```
 
 ## Что показать на защите
 
-1. Отчет `.docx` из корня репозитория.
-2. Код обучения в `image_forgery_cnn/train_forgery_cnn.py`.
-3. Сохраненные после обучения метрики и графики.
-4. Пример Grad-CAM, показывающий область изображения, которая повлияла на решение модели.
+1. Готовый отчет `ЛБ_2_отчет.docx`.
+2. Код обучения в `runpod_deepfake/train_deepfake_attention_gru.py`.
+3. Метрики из `metrics.json`: Accuracy, Precision, Recall, F1-score, ROC-AUC.
+4. Матрицу ошибок `confusion_matrix.png`.
+5. Attention-карты `attention_examples.png` как интерпретацию решения модели.
