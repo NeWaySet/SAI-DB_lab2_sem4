@@ -1,4 +1,4 @@
-# RunPod Deepfake Detector для RTX PRO 6000
+# Deepfake Detector для Colab / RunPod
 
 Пакет обучает небольшую нейронку для отчета по теме **Deepfake Detection**.
 
@@ -9,6 +9,37 @@
 - Модель: компактная CNN + BiGRU + Attention.
 - Подходы из задания: рекуррентная нейронная сеть + механизм внимания.
 - Артефакты: `metrics.json`, `best_model.pt`, confusion matrix, learning curves, attention overlays, `.docx` отчет.
+
+## Google Colab setup
+
+Для сдачи удобнее запускать проект в Colab. Готовые ячейки находятся в корневом файле:
+
+```text
+COLAB_CELLS.md
+```
+
+Минимальный Colab-запуск:
+
+```python
+!git clone https://github.com/NeWaySet/SAI-DB_lab2_sem4.git
+%cd /content/SAI-DB_lab2_sem4/runpod_deepfake
+!pip -q install -r requirements-runpod.txt
+```
+
+После подключения `kaggle.json`:
+
+```python
+!python train_deepfake_attention_gru.py \
+  --profile custom \
+  --image_size 224 \
+  --epochs 30 \
+  --min_epochs 8 \
+  --target_minutes 55 \
+  --batch_size 64 \
+  --max_per_class 1500 \
+  --num_workers 2 \
+  --amp
+```
 
 ## RunPod setup
 

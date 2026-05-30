@@ -10,6 +10,7 @@
 | --- | --- |
 | `ЛБ_2_отчет.docx` | готовый отчет для защиты |
 | `ЛБ_2_отчет.pdf` | PDF-копия отчета |
+| `COLAB_CELLS.md` | готовые ячейки для запуска ЛБ2 в Google Colab |
 | `runpod_deepfake/` | код обучения deepfake-детектора на RunPod |
 | `report_assets/` | изображения и графики, использованные при подготовке отчетов |
 | `image_forgery_cnn/` | дополнительный учебный проект по классификации фальсифицированных изображений |
@@ -41,7 +42,40 @@
 ciplab/real-and-fake-face-detection
 ```
 
-Он подходит для учебного запуска: данные достаточно компактные, а обучение можно уложить примерно в один час на RunPod с RTX PRO 6000.
+Он подходит для учебного запуска: данные достаточно компактные, а обучение можно уложить примерно в один час в Google Colab с GPU.
+
+## Запуск в Google Colab
+
+Основной вариант для сдачи находится в файле `COLAB_CELLS.md`. Скопируй ячейки в Colab и выполни их сверху вниз.
+
+Коротко:
+
+```python
+!git clone https://github.com/NeWaySet/SAI-DB_lab2_sem4.git
+%cd /content/SAI-DB_lab2_sem4/runpod_deepfake
+!pip -q install -r requirements-runpod.txt
+```
+
+После подключения `kaggle.json` запуск обучения:
+
+```python
+!python train_deepfake_attention_gru.py \
+  --profile custom \
+  --image_size 224 \
+  --epochs 30 \
+  --min_epochs 8 \
+  --target_minutes 55 \
+  --batch_size 64 \
+  --max_per_class 1500 \
+  --num_workers 2 \
+  --amp
+```
+
+После обучения собирается Word-отчет:
+
+```python
+!python build_deepfake_report.py --run_dir outputs/deepfake_attention_gru_YYYYMMDD_HHMMSS
+```
 
 ## Запуск на RunPod RTX PRO 6000
 

@@ -1,12 +1,13 @@
 import argparse
 import json
 import random
+import shutil
+import subprocess
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 
-import kagglehub
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -50,9 +51,46 @@ def seed_everything(seed: int) -> None:
 
 def resolve_dataset(data_dir: str | None) -> Path:
     if data_dir:
-        return Path(data_dir).expanduser().resolve()
-    path = kagglehub.dataset_download(DATASET_SLUG)
-    return Path(path).resolve()
+        root = Path(data_dir).expanduser().resolve()
+        if not root.exists():
+            raise FileNotFoundError(f"Dataset directory does not exist: {root}")
+        return root
+    return download_dataset_with_kaggle_cli(DATASET_SLUG)
+
+
+def download_dataset_with_kaggle_cli(dataset_slug: str) -> Path:
+    kaggle_bin = shutil.which("kaggle")
+    if kaggle_bin is None:
+        raise RuntimeError(
+            "kaggle CLI is not installed. Run `pip install kaggle`, or download the dataset "
+            "manually and pass --data_dir."
+        )
+
+    safe_name = dataset_slug.replace("/", "__")
+    target_dir = Path("data") / safe_name
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in target_dir.rglob("*"))
+    if not has_images:
+        command = [
+            kaggle_bin,
+            "datasets",
+            "download",
+            "-d",
+            dataset_slug,
+            "-p",
+            str(target_dir),
+            "--unzip",
+        ]
+        try:
+            subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                "Could not download the Kaggle dataset. Add kaggle.json to "
+                "~/.kaggle/kaggle.json or set KAGGLE_USERNAME and KAGGLE_KEY."
+            ) from exc
+
+    return target_dir.resolve()
 
 
 def apply_profile(args):
