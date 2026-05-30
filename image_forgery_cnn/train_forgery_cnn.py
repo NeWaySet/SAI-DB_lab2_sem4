@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import shutil
+import subprocess
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from io import BytesIO
@@ -68,14 +70,14 @@ def parse_args() -> argparse.Namespace:
         "--dataset-slug",
         default=DEFAULT_DATASET_SLUG,
         help=(
-            "KaggleHub dataset slug. Default is CASIA 2.0. "
+            "Kaggle dataset slug. Default is CASIA 2.0. "
             f"For the tiny 202-image splicing dataset use: {QUICK_DATASET_SLUG}"
         ),
     )
     parser.add_argument(
         "--data-dir",
         default=None,
-        help="Local dataset directory. If omitted, kagglehub downloads --dataset-slug.",
+        help="Local dataset directory. If omitted, kaggle CLI downloads --dataset-slug.",
     )
     parser.add_argument("--output-dir", default="runs/casia_rtx_pro_6000_hour")
     parser.add_argument("--image-size", type=int, default=384)
@@ -194,14 +196,44 @@ def resolve_dataset(data_dir: str | None, dataset_slug: str) -> Path:
         return root
 
     try:
-        import kagglehub
-    except ImportError as exc:
+        return download_dataset_with_kaggle_cli(dataset_slug)
+    except Exception as exc:
         raise RuntimeError(
-            "kagglehub is required when --data-dir is not provided. "
-            "Install requirements-runpod.txt first."
+            "Could not download dataset automatically. Use one of these fixes:\n"
+            "1) Put kaggle.json into ~/.kaggle/kaggle.json and run again.\n"
+            "2) Export KAGGLE_USERNAME and KAGGLE_KEY, then run again.\n"
+            "3) Download the dataset manually and pass --data-dir /path/to/dataset.\n"
+            f"kaggle CLI error: {exc}"
         ) from exc
 
-    return Path(kagglehub.dataset_download(dataset_slug)).resolve()
+
+def download_dataset_with_kaggle_cli(dataset_slug: str) -> Path:
+    kaggle_bin = shutil.which("kaggle")
+    if kaggle_bin is None:
+        raise RuntimeError(
+            "kaggle CLI is not installed. Run `pip install kaggle`, or download the dataset "
+            "manually and pass --data-dir."
+        )
+
+    safe_name = dataset_slug.replace("/", "__")
+    target_dir = Path("data") / safe_name
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    has_images = any(path.suffix.lower() in IMAGE_EXTENSIONS for path in target_dir.rglob("*"))
+    if not has_images:
+        command = [
+            kaggle_bin,
+            "datasets",
+            "download",
+            "-d",
+            dataset_slug,
+            "-p",
+            str(target_dir),
+            "--unzip",
+        ]
+        subprocess.run(command, check=True)
+
+    return target_dir.resolve()
 
 
 def collect_images(root: Path, max_per_class: int | None, seed: int) -> pd.DataFrame:
